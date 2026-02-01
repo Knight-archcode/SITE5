@@ -42,19 +42,11 @@
             transform: translate(-50%, -50%);
             transition: all 0.3s ease;
             box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
-            z-index: 10;
         }
         
         .marker:hover {
             transform: translate(-50%, -50%) scale(1.15);
             box-shadow: 0 6px 20px rgba(79, 70, 229, 0.6);
-        }
-        
-        .marker.selected {
-            background: rgba(79, 70, 229, 0.7);
-            border-color: #ffffff;
-            transform: translate(-50%, -50%) scale(1.3);
-            box-shadow: 0 8px 24px rgba(79, 70, 229, 0.8);
         }
         
         .connection-line {
@@ -64,7 +56,6 @@
             transform-origin: 0 0;
             pointer-events: none;
             box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
-            z-index: 5;
         }
         
         .mode-button {
@@ -243,11 +234,6 @@
                 <button onclick="saveData()" class="w-full btn-primary text-white font-bold py-4 rounded-xl text-lg shadow-lg">
                     💾 Save Changes
                 </button>
-                
-                <!-- Debug Button -->
-                <button onclick="debugData()" class="w-full px-4 py-2 bg-gray-500/20 hover:bg-gray-500/30 text-gray-300 rounded-lg text-sm border border-gray-500/30 transition-all mt-2">
-                    🐛 Debug Data
-                </button>
             </div>
 
             <!-- Main Editor -->
@@ -319,86 +305,19 @@
         let selectedIcon = '🛏️';
         let connectionStart = null;
 
-        // Initialize data structure
-        if (!hotelData.floors) {
-            hotelData.floors = {};
-        }
-
         // Load data from localStorage
         function loadData() {
             const saved = localStorage.getItem('hotelHopperData');
             if (saved) {
-                try {
-                    hotelData = JSON.parse(saved);
-                    console.log('Loaded data from localStorage:', hotelData);
-                } catch (e) {
-                    console.error('Error parsing saved data:', e);
-                    hotelData = { floors: {} };
-                }
+                hotelData = JSON.parse(saved);
             }
             updateFloorSelector();
         }
 
         // Save data to localStorage
         function saveData() {
-            try {
-                // Validate data structure before saving
-                if (!hotelData.floors) {
-                    hotelData.floors = {};
-                }
-                
-                // Ensure all floors have required properties
-                Object.keys(hotelData.floors).forEach(floorNum => {
-                    const floor = hotelData.floors[floorNum];
-                    if (!floor.markers) floor.markers = [];
-                    if (!floor.connections) floor.connections = [];
-                    if (!floor.name) floor.name = `Floor ${floorNum}`;
-                });
-                
-                localStorage.setItem('hotelHopperData', JSON.stringify(hotelData));
-                
-                // Show success message with details
-                const floorCount = Object.keys(hotelData.floors).length;
-                const totalMarkers = Object.values(hotelData.floors).reduce((sum, floor) => sum + (floor.markers?.length || 0), 0);
-                const totalConnections = Object.values(hotelData.floors).reduce((sum, floor) => sum + (floor.connections?.length || 0), 0);
-                
-                alert(`✅ Changes saved successfully!\nFloors: ${floorCount}\nMarkers: ${totalMarkers}\nConnections: ${totalConnections}`);
-                
-                // Try to reload the main page if it's open
-                try {
-                    if (window.opener && !window.opener.closed) {
-                        window.opener.location.reload();
-                    }
-                } catch(e) {
-                    // Cross-origin or security restriction
-                    console.log('Could not reload main page:', e.message);
-                }
-            } catch (error) {
-                console.error('Error saving data:', error);
-                alert('❌ Error saving data. Check console for details.');
-            }
-        }
-
-        // Debug function to check data
-        function debugData() {
-            console.log('Current hotel data:', hotelData);
-            console.log('LocalStorage data:', localStorage.getItem('hotelHopperData'));
-            
-            const saved = localStorage.getItem('hotelHopperData');
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    const floorCount = Object.keys(parsed.floors || {}).length;
-                    const totalMarkers = Object.values(parsed.floors || {}).reduce((sum, floor) => sum + (floor.markers?.length || 0), 0);
-                    const totalConnections = Object.values(parsed.floors || {}).reduce((sum, floor) => sum + (floor.connections?.length || 0), 0);
-                    
-                    alert(`Data found:\n- ${floorCount} floor(s)\n- ${totalMarkers} marker(s)\n- ${totalConnections} connection(s)\nCheck console for full details`);
-                } catch(e) {
-                    alert('Data corrupted in localStorage');
-                }
-            } else {
-                alert('No data in localStorage');
-            }
+            localStorage.setItem('hotelHopperData', JSON.stringify(hotelData));
+            alert('✅ Changes saved successfully!');
         }
 
         // Login functionality
@@ -560,11 +479,15 @@
             img.style.height = 'auto';
             img.style.display = 'block';
             img.onclick = handleFloorPlanClick;
-            container.appendChild(img);
             
-            renderMarkers();
-            renderConnections();
-            updateMarkersList();
+            // Wait for image to load before rendering markers and connections
+            img.onload = function() {
+                renderConnections();
+                renderMarkers();
+                updateMarkersList();
+            };
+            
+            container.appendChild(img);
         }
 
         function clearFloorPlan() {
@@ -610,11 +533,6 @@
             if (mode) {
                 document.getElementById('mode' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.add('active');
             }
-            
-            // Reset any selected markers
-            document.querySelectorAll('.marker.selected').forEach(marker => {
-                marker.classList.remove('selected');
-            });
         }
 
         // Marker management
@@ -656,7 +574,8 @@
             
             hotelData.floors[currentFloor].markers.push(marker);
             closeMarkerModal();
-            loadFloorPlan();
+            renderMarkers();
+            updateMarkersList();
             saveData();
         }
 
@@ -665,9 +584,6 @@
                 document.getElementById('markerModal').classList.add('hidden');
                 document.getElementById('markerName').value = '';
                 selectedIcon = '🛏️';
-                document.querySelectorAll('.icon-btn').forEach(btn => {
-                    btn.style.background = 'rgba(255, 255, 255, 0.1)';
-                });
             }
         }
 
@@ -675,7 +591,9 @@
             const floor = hotelData.floors[currentFloor];
             floor.markers = floor.markers.filter(m => m.id !== markerId);
             floor.connections = floor.connections.filter(c => !c.includes(markerId));
-            loadFloorPlan();
+            renderConnections();
+            renderMarkers();
+            updateMarkersList();
             saveData();
         }
 
@@ -689,33 +607,15 @@
             } else if (editMode === 'connect' || editMode === 'disconnect') {
                 if (!connectionStart) {
                     connectionStart = markerId;
-                    // Visual feedback for selected marker
-                    e.target.classList.add('selected');
-                    alert('Selected first marker. Click another marker to ' + editMode);
                 } else {
-                    if (connectionStart === markerId) {
-                        alert('Cannot connect a marker to itself. Click a different marker.');
-                        // Reset selection
-                        resetConnectionStart();
-                        return;
-                    }
-                    
                     if (editMode === 'connect') {
                         connectMarkers(connectionStart, markerId);
                     } else {
                         disconnectMarkers(connectionStart, markerId);
                     }
-                    resetConnectionStart();
+                    connectionStart = null;
                 }
             }
-        }
-
-        function resetConnectionStart() {
-            // Reset visual state of all markers
-            document.querySelectorAll('.marker.selected').forEach(marker => {
-                marker.classList.remove('selected');
-            });
-            connectionStart = null;
         }
 
         function connectMarkers(id1, id2) {
@@ -724,29 +624,37 @@
                 (c[0] === id1 && c[1] === id2) || (c[0] === id2 && c[1] === id1)
             );
             
-            if (exists) {
-                alert('These markers are already connected!');
-            } else {
+            if (!exists) {
                 floor.connections.push([id1, id2]);
-                loadFloorPlan();
+                renderConnections(); // Re-render connections
                 saveData();
-                alert('Markers connected successfully!');
+                
+                // Visual feedback
+                const marker1 = floor.markers.find(m => m.id === id1);
+                const marker2 = floor.markers.find(m => m.id === id2);
+                console.log(`Connected: ${marker1.name} ↔ ${marker2.name}`);
+            } else {
+                alert('These markers are already connected!');
             }
         }
 
         function disconnectMarkers(id1, id2) {
             const floor = hotelData.floors[currentFloor];
-            const originalLength = floor.connections.length;
+            const beforeLength = floor.connections.length;
             floor.connections = floor.connections.filter(c => 
                 !((c[0] === id1 && c[1] === id2) || (c[0] === id2 && c[1] === id1))
             );
             
-            if (floor.connections.length < originalLength) {
-                loadFloorPlan();
+            if (floor.connections.length < beforeLength) {
+                renderConnections(); // Re-render connections
                 saveData();
-                alert('Markers disconnected!');
+                
+                // Visual feedback
+                const marker1 = floor.markers.find(m => m.id === id1);
+                const marker2 = floor.markers.find(m => m.id === id2);
+                console.log(`Disconnected: ${marker1.name} ↮ ${marker2.name}`);
             } else {
-                alert('These markers were not connected.');
+                alert('These markers are not connected!');
             }
         }
 
@@ -754,54 +662,64 @@
             const container = document.getElementById('floorPlanContainer');
             const floor = hotelData.floors[currentFloor];
             
-            if (floor.markers) {
-                floor.markers.forEach(marker => {
-                    const markerEl = document.createElement('div');
-                    markerEl.className = 'marker';
-                    markerEl.style.left = marker.x + '%';
-                    markerEl.style.top = marker.y + '%';
-                    markerEl.innerHTML = marker.icon;
-                    markerEl.title = marker.name;
-                    markerEl.onclick = (e) => handleMarkerClick(marker.id, e);
-                    container.appendChild(markerEl);
-                });
-            }
+            // Remove old markers only
+            const oldMarkers = container.querySelectorAll('.marker');
+            oldMarkers.forEach(marker => marker.remove());
+            
+            floor.markers.forEach(marker => {
+                const markerEl = document.createElement('div');
+                markerEl.className = 'marker';
+                markerEl.style.left = marker.x + '%';
+                markerEl.style.top = marker.y + '%';
+                markerEl.innerHTML = marker.icon;
+                markerEl.title = marker.name;
+                markerEl.onclick = (e) => handleMarkerClick(marker.id, e);
+                container.appendChild(markerEl);
+            });
         }
 
         function renderConnections() {
             const container = document.getElementById('floorPlanContainer');
             const floor = hotelData.floors[currentFloor];
             
-            if (floor.connections) {
-                floor.connections.forEach(([id1, id2]) => {
-                    const marker1 = floor.markers.find(m => m.id === id1);
-                    const marker2 = floor.markers.find(m => m.id === id2);
+            // Remove old connection lines only
+            const oldLines = container.querySelectorAll('.connection-line');
+            oldLines.forEach(line => line.remove());
+            
+            floor.connections.forEach(([id1, id2]) => {
+                const marker1 = floor.markers.find(m => m.id === id1);
+                const marker2 = floor.markers.find(m => m.id === id2);
+                
+                if (marker1 && marker2) {
+                    const line = document.createElement('div');
+                    line.className = 'connection-line';
                     
-                    if (marker1 && marker2) {
-                        const line = document.createElement('div');
-                        line.className = 'connection-line';
-                        
-                        const dx = marker2.x - marker1.x;
-                        const dy = marker2.y - marker1.y;
-                        const length = Math.sqrt(dx * dx + dy * dy);
-                        const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-                        
-                        line.style.left = marker1.x + '%';
-                        line.style.top = marker1.y + '%';
-                        line.style.width = length + '%';
-                        line.style.transform = `rotate(${angle}deg)`;
-                        
+                    const dx = marker2.x - marker1.x;
+                    const dy = marker2.y - marker1.y;
+                    const length = Math.sqrt(dx * dx + dy * dy);
+                    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                    
+                    line.style.left = marker1.x + '%';
+                    line.style.top = marker1.y + '%';
+                    line.style.width = length + '%';
+                    line.style.transform = `rotate(${angle}deg)`;
+                    
+                    // Insert line before markers (so it's underneath)
+                    const img = container.querySelector('img');
+                    if (img && img.nextSibling) {
+                        container.insertBefore(line, img.nextSibling);
+                    } else {
                         container.appendChild(line);
                     }
-                });
-            }
+                }
+            });
         }
 
         function updateMarkersList() {
             const list = document.getElementById('markersList');
             const floor = hotelData.floors[currentFloor];
             
-            if (!floor.markers || !floor.markers.length) {
+            if (!floor.markers.length) {
                 list.innerHTML = '<p class="text-gray-400 text-sm">No markers yet</p>';
                 return;
             }
